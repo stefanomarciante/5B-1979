@@ -27,13 +27,30 @@
             font-size: 16px;
             line-height: 1.5;
         }
+        .btn {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .btn:active {
+            background-color: #005bb5;
+        }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h1>Sistema Pronto</h1>
+        <img src="616b5201-ee8f-4a9c-a13c-b4478999b0f0.jpeg" alt="Immagine di sistema" style="width: 100%; border-radius: 8px; margin-top: 10px; margin-bottom: 15px;">
         <p>Questa è la struttura di base. Il layout si adatta automaticamente allo schermo.</p>
+        <button class="btn" onclick="alert('Connessione interfaccia attiva!')">Test Connessione</button>
     </div>
 
 </body>

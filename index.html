@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Interfaccia Compagni</title>
+    <title>Mappatura Classe - Collaborativa</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -19,38 +19,47 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             margin-bottom: 16px;
         }
-        h1 {
-            font-size: 22px;
-            margin-top: 0;
-            margin-bottom: 5px;
-        }
-        p {
-            font-size: 15px;
-            color: #666;
-            margin-top: 0;
+        h1 { font-size: 20px; margin-top: 0; }
+        p { font-size: 14px; color: #666; margin-top: 0; }
+
+        .token-box {
             margin-bottom: 15px;
+            display: flex;
+            gap: 8px;
+        }
+        .token-box input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .token-box button {
+            padding: 8px 14px;
+            background-color: #34c759;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
         }
 
-        /* Contenitore immagine */
         #image-container {
             position: relative; 
             width: 100%;
             overflow: hidden;
             border-radius: 8px;
-            touch-action: manipulation; /* Evita lo zoom accidentale col doppio tocco su iOS */
+            touch-action: manipulation;
         }
         #image-container img {
             width: 100%;
             display: block;
-            cursor: crosshair;
         }
 
-        /* Marker cliccabili creati dinamicamente */
         .hotspot {
             position: absolute;
-            width: 20px;
-            height: 20px;
-            background-color: rgba(0, 122, 255, 0.5); /* Blu semi-trasparente */
+            width: 22px;
+            height: 22px;
+            background-color: rgba(0, 122, 255, 0.4);
             border: 2px solid #007aff;
             border-radius: 50%; 
             transform: translate(-50%, -50%); 
@@ -58,7 +67,6 @@
             z-index: 5;
         }
 
-        /* Stile del Popup in stile iOS */
         dialog {
             border: none;
             border-radius: 14px;
@@ -68,23 +76,9 @@
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px); 
         }
-        dialog::backdrop {
-            background: rgba(0, 0, 0, 0.4); 
-        }
-        dialog h2 {
-            margin-top: 0;
-            margin-bottom: 20px;
-            font-size: 22px;
-            color: #000;
-        }
-        
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
         .btn {
             flex: 1;
             padding: 12px;
@@ -92,85 +86,91 @@
             border-radius: 8px;
             font-size: 16px;
             font-weight: 600;
-            cursor: pointer;
             color: white;
         }
         .btn-close { background-color: #007aff; }
         .btn-delete { background-color: #ff3b30; }
-        
-        .btn-export {
-            background-color: #34c759;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-size: 16px;
-            font-weight: 600;
-            width: 100%;
-            margin-top: 20px;
-            cursor: pointer;
-        }
+        .status { font-size: 12px; color: #8e8e93; text-align: center; margin-top: 8px; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h1>Mappatura Classe</h1>
-        <p>Tocca un viso per aggiungere un compagno. Tocca un bollino blu per vedere il nome.</p>
+        
+        <!-- Configurazione Token per abilitare la scrittura -->
+        <div class="token-box">
+            <input type="password" id="ghToken" placeholder="Chiave Accesso GitHub">
+            <button onclick="salvaToken()">Salva</button>
+        </div>
+
+        <p>Tocca un volto per aggiungere o modificare un compagno.</p>
         
         <div id="image-container">
             <img src="616b5201-ee8f-4a9c-a13c-b4478999b0f0.jpeg" id="class-photo" alt="Foto di gruppo">
-            <!-- I marker verranno iniettati qui da JavaScript -->
         </div>
-
-        <button class="btn-export" onclick="esportaDati()">Esporta Dati JSON</button>
+        
+        <div id="status" class="status">Sincronizzazione in corso...</div>
     </div>
 
-    <!-- Popup -->
     <dialog id="popupNome">
         <h2 id="nomeCompagno">Nome Cognome</h2>
         <div class="btn-group">
-            <button class="btn btn-delete" onclick="eliminaMarkerAttuale()">Elimina</button>
+            <button class="btn btn-delete" id="btnDelete" onclick="eliminaMarker()">Elimina</button>
             <button class="btn btn-close" onclick="chiudiPopup()">Chiudi</button>
         </div>
     </dialog>
 
     <script>
-        const container = document.getElementById('image-container');
+        // --- CONFIGURAZIONE REPOSITORY ---
+        const REPO_OWNER = "IL_TUO_USERNAME_GITHUB"; // Inserisci il tuo username GitHub
+        const REPO_NAME = "interfaccia-controllo";    // Nome del repository
+        const FILE_PATH = "dati.json";
+        // ----------------------------------
+
         const photo = document.getElementById('class-photo');
+        const container = document.getElementById('image-container');
         const popup = document.getElementById('popupNome');
-        const etichettaNome = document.getElementById('nomeCompagno');
+        const statusEl = document.getElementById('status');
         
-        // Carica i dati salvati nella memoria del browser (o crea un array vuoto)
-        let classmates = JSON.parse(localStorage.getItem('classmatesData')) || [];
+        let classmates = [];
+        let fileSHA = ""; // Necessario a GitHub per aggiornare il file
         let markerAttivoId = null;
 
-        // Disegna i marker già salvati al caricamento della pagina
-        window.onload = () => {
-            classmates.forEach(c => disegnaMarker(c.id, c.x, c.y, c.nome));
-        };
+        // Inizializzazione Token
+        document.getElementById('ghToken').value = localStorage.getItem('gh_token') || '';
 
-        // Gestione tocco sulla foto per aggiungere un nuovo compagno
-        photo.addEventListener('click', function(e) {
-            const rect = photo.getBoundingClientRect();
-            const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
-            const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+        function salvaToken() {
+            const token = document.getElementById('ghToken').value.trim();
+            localStorage.setItem('gh_token', token);
+            alert("Chiave salvata! Ora puoi modificare i dati.");
+        }
 
-            const name = prompt("Inserisci Nome e Cognome del compagno:");
-            
-            if (name && name.trim() !== "") {
-                const newId = Date.now(); // Genera un ID univoco basato sul tempo
-                
-                // Salva nell'array e nella memoria del telefono
-                classmates.push({ id: newId, x: xPercent, y: yPercent, nome: name });
-                salvaDati();
-                
-                // Disegna il punto sullo schermo
-                disegnaMarker(newId, xPercent, yPercent, name);
+        // Caricamento dati da GitHub API
+        async function caricaDatiDaGitHub() {
+            statusEl.innerText = "Caricamento dati...";
+            try {
+                const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    fileSHA = data.sha;
+                    const content = decodeURIComponent(escape(atob(data.content)));
+                    classmates = JSON.parse(content);
+                    disegnaTuttiIMarker();
+                    statusEl.innerText = "Dati aggiornati da GitHub";
+                }
+            } catch (err) {
+                statusEl.innerText = "Errore nel caricamento dati";
             }
-        });
+        }
 
-        // Funzione per creare fisicamente il bollino blu
+        function disegnaTuttiIMarker() {
+            document.querySelectorAll('.hotspot').forEach(el => el.remove());
+            classmates.forEach(c => disegnaMarker(c.id, c.x, c.y, c.nome));
+        }
+
         function disegnaMarker(id, x, y, name) {
             const marker = document.createElement('div');
             marker.className = 'hotspot';
@@ -178,49 +178,89 @@
             marker.style.top = y + '%';
             marker.id = 'marker-' + id;
 
-            // Se tocco un marker esistente, apro il popup
-            marker.addEventListener('click', function(e) {
-                e.stopPropagation(); // Evita di far scattare il click sulla foto sottostante
+            marker.addEventListener('click', (e) => {
+                e.stopPropagation();
                 markerAttivoId = id;
-                etichettaNome.innerText = name;
+                document.getElementById('nomeCompagno').innerText = name;
                 popup.showModal();
             });
 
             container.appendChild(marker);
         }
 
-        // Chiusura e gestione Popup
+        // Aggiunta nuovo compagno
+        photo.addEventListener('click', async (e) => {
+            const token = localStorage.getItem('gh_token');
+            if (!token) {
+                alert("Inserisci la chiave di accesso in alto per poter aggiungere i dati.");
+                return;
+            }
+
+            const rect = photo.getBoundingClientRect();
+            const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+            const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+
+            const name = prompt("Inserisci Nome e Cognome:");
+            if (name && name.trim() !== "") {
+                const newId = Date.now();
+                classmates.push({ id: newId, x: xPercent, y: yPercent, nome: name.trim() });
+                await salvaSuGitHub();
+            }
+        });
+
+        // Salvataggio tramite GitHub REST API
+        async function salvaSuGitHub() {
+            const token = localStorage.getItem('gh_token');
+            if (!token) return;
+
+            statusEl.innerText = "Salvataggio su GitHub in corso...";
+            const jsonString = JSON.stringify(classmates, null, 2);
+            // Conversion in Base64 compatibile UTF-8
+            const contentBase64 = btoa(unescape(encodeURIComponent(jsonString)));
+
+            try {
+                const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: "Aggiornamento mappatura compagni",
+                        content: contentBase64,
+                        sha: fileSHA
+                    })
+                });
+
+                if (res.ok) {
+                    const resData = await res.json();
+                    fileSHA = resData.content.sha;
+                    disegnaTuttiIMarker();
+                    statusEl.innerText = "Salvato con successo su GitHub!";
+                } else {
+                    alert("Errore durante il salvataggio. Verifica il token.");
+                    statusEl.innerText = "Errore di salvataggio";
+                }
+            } catch (err) {
+                alert("Errore di rete durante il salvataggio.");
+            }
+        }
+
+        async function eliminaMarker() {
+            if (markerAttivoId) {
+                classmates = classmates.filter(c => c.id !== markerAttivoId);
+                chiudiPopup();
+                await salvaSuGitHub();
+            }
+        }
+
         function chiudiPopup() {
             popup.close();
             markerAttivoId = null;
         }
 
-        function eliminaMarkerAttuale() {
-            if (markerAttivoId) {
-                // Rimuove dall'array
-                classmates = classmates.filter(c => c.id !== markerAttivoId);
-                salvaDati();
-                
-                // Rimuove l'elemento visivo
-                const markerElement = document.getElementById('marker-' + markerAttivoId);
-                if (markerElement) {
-                    markerElement.remove();
-                }
-                chiudiPopup();
-            }
-        }
-
-        function salvaDati() {
-            localStorage.setItem('classmatesData', JSON.stringify(classmates));
-        }
-
-        // Esporta i dati finali
-        function esportaDati() {
-            const jsonOutput = JSON.stringify(classmates, null, 2);
-            console.log(jsonOutput);
-            alert("Dati copiati negli appunti e visibili in console!");
-            navigator.clipboard.writeText(jsonOutput); // Copia automaticamente il JSON negli appunti
-        }
+        // Carica i dati all'apertura
+        caricaDatiDaGitHub();
     </script>
 
 </body>

@@ -215,14 +215,13 @@
 
             statusEl.innerText = "Salvataggio su GitHub in corso...";
             const jsonString = JSON.stringify(classmates, null, 2);
-            // Conversion in Base64 compatibile UTF-8
             const contentBase64 = btoa(unescape(encodeURIComponent(jsonString)));
 
             try {
                 const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `token ${token}`,
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -232,20 +231,20 @@
                     })
                 });
 
+                const resData = await res.json();
+
                 if (res.ok) {
-                    const resData = await res.json();
                     fileSHA = resData.content.sha;
                     disegnaTuttiIMarker();
                     statusEl.innerText = "Salvato con successo su GitHub!";
                 } else {
-                    alert("Errore durante il salvataggio. Verifica il token.");
+                    alert(`Errore GitHub ${res.status}: ${resData.message}`);
                     statusEl.innerText = "Errore di salvataggio";
                 }
             } catch (err) {
                 alert("Errore di rete durante il salvataggio.");
             }
         }
-
         async function eliminaMarker() {
             if (markerAttivoId) {
                 classmates = classmates.filter(c => c.id !== markerAttivoId);

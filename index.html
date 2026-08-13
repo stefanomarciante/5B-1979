@@ -214,11 +214,28 @@
             if (!token) return;
 
             statusEl.innerText = "Salvataggio su GitHub in corso...";
-            const jsonString = JSON.stringify(classmates, null, 2);
-            const contentBase64 = btoa(unescape(encodeURIComponent(jsonString)));
 
             try {
-                const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
+                // 1. Recupera lo SHA esatto e aggiornato prima di sovrascrivere
+                let currentSha = fileSHA;
+                const resGet = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache' 
+                    }
+                });
+                
+                if (resGet.ok) {
+                    const currentData = await resGet.json();
+                    currentSha = currentData.sha;
+                }
+
+                // 2. Prepara il pacchetto dati
+                const jsonString = JSON.stringify(classmates, null, 2);
+                const contentBase64 = btoa(unescape(encodeURIComponent(jsonString)));
+
+                // 3. Esegue la sovrascrittura
+                const resPut = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -227,24 +244,25 @@
                     body: JSON.stringify({
                         message: "Aggiornamento mappatura compagni",
                         content: contentBase64,
-                        sha: fileSHA
+                        sha: currentSha
                     })
                 });
 
-                const resData = await res.json();
+                const resData = await resPut.json();
 
-                if (res.ok) {
+                if (resPut.ok) {
                     fileSHA = resData.content.sha;
                     disegnaTuttiIMarker();
                     statusEl.innerText = "Salvato con successo su GitHub!";
                 } else {
-                    alert(`Errore GitHub ${res.status}: ${resData.message}`);
+                    alert(`Errore GitHub ${resPut.status}: ${resData.message}`);
                     statusEl.innerText = "Errore di salvataggio";
                 }
             } catch (err) {
                 alert("Errore di rete durante il salvataggio.");
             }
         }
+        
         async function eliminaMarker() {
             if (markerAttivoId) {
                 classmates = classmates.filter(c => c.id !== markerAttivoId);

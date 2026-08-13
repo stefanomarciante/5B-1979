@@ -31,25 +31,34 @@
             margin-bottom: 15px;
         }
 
-        .image-wrapper {
+        /* Contenitore immagine */
+        #image-container {
             position: relative; 
             width: 100%;
             overflow: hidden;
             border-radius: 8px;
+            touch-action: manipulation; /* Evita lo zoom accidentale col doppio tocco su iOS */
         }
-        .image-wrapper img {
+        #image-container img {
             width: 100%;
             display: block;
+            cursor: crosshair;
         }
 
+        /* Marker cliccabili creati dinamicamente */
         .hotspot {
             position: absolute;
-            background-color: rgba(0, 122, 255, 0.4); 
+            width: 20px;
+            height: 20px;
+            background-color: rgba(0, 122, 255, 0.5); /* Blu semi-trasparente */
+            border: 2px solid #007aff;
             border-radius: 50%; 
-            cursor: pointer;
             transform: translate(-50%, -50%); 
+            cursor: pointer;
+            z-index: 5;
         }
 
+        /* Stile del Popup in stile iOS */
         dialog {
             border: none;
             border-radius: 14px;
@@ -70,61 +79,147 @@
             font-size: 22px;
             color: #000;
         }
-        .btn-close {
-            background-color: #007aff;
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            color: white;
+        }
+        .btn-close { background-color: #007aff; }
+        .btn-delete { background-color: #ff3b30; }
+        
+        .btn-export {
+            background-color: #34c759;
             color: white;
             border: none;
-            border-radius: 10px;
-            padding: 12px 20px;
+            border-radius: 8px;
+            padding: 12px 24px;
             font-size: 16px;
             font-weight: 600;
             width: 100%;
+            margin-top: 20px;
             cursor: pointer;
-        }
-        .btn-close:active {
-            background-color: #005bb5;
         }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>La mia Classe</h1>
-        <p>Tocca un volto per scoprire chi è.</p>
+        <h1>Mappatura Classe</h1>
+        <p>Tocca un viso per aggiungere un compagno. Tocca un bollino blu per vedere il nome.</p>
         
-        <div class="image-wrapper">
-            <img src="616b5201-ee8f-4a9c-a13c-b4478999b0f0.jpeg" alt="Foto di gruppo">
-            
-            <!-- VOLTO 1 -->
-            <div class="hotspot" 
-                 style="top: 30%; left: 25%; width: 15%; height: 15%;" 
-                 onclick="mostraNome('Mario Rossi')">
-            </div>
-
-            <!-- VOLTO 2 -->
-            <div class="hotspot" 
-                 style="top: 45%; left: 70%; width: 12%; height: 12%;" 
-                 onclick="mostraNome('Giulia Bianchi')">
-            </div>
+        <div id="image-container">
+            <img src="616b5201-ee8f-4a9c-a13c-b4478999b0f0.jpeg" id="class-photo" alt="Foto di gruppo">
+            <!-- I marker verranno iniettati qui da JavaScript -->
         </div>
+
+        <button class="btn-export" onclick="esportaDati()">Esporta Dati JSON</button>
     </div>
 
+    <!-- Popup -->
     <dialog id="popupNome">
         <h2 id="nomeCompagno">Nome Cognome</h2>
-        <button class="btn-close" onclick="chiudiPopup()">Chiudi</button>
+        <div class="btn-group">
+            <button class="btn btn-delete" onclick="eliminaMarkerAttuale()">Elimina</button>
+            <button class="btn btn-close" onclick="chiudiPopup()">Chiudi</button>
+        </div>
     </dialog>
 
     <script>
+        const container = document.getElementById('image-container');
+        const photo = document.getElementById('class-photo');
         const popup = document.getElementById('popupNome');
         const etichettaNome = document.getElementById('nomeCompagno');
+        
+        // Carica i dati salvati nella memoria del browser (o crea un array vuoto)
+        let classmates = JSON.parse(localStorage.getItem('classmatesData')) || [];
+        let markerAttivoId = null;
 
-        function mostraNome(nome) {
-            etichettaNome.innerText = nome; 
-            popup.showModal();              
+        // Disegna i marker già salvati al caricamento della pagina
+        window.onload = () => {
+            classmates.forEach(c => disegnaMarker(c.id, c.x, c.y, c.nome));
+        };
+
+        // Gestione tocco sulla foto per aggiungere un nuovo compagno
+        photo.addEventListener('click', function(e) {
+            const rect = photo.getBoundingClientRect();
+            const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+            const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+
+            const name = prompt("Inserisci Nome e Cognome del compagno:");
+            
+            if (name && name.trim() !== "") {
+                const newId = Date.now(); // Genera un ID univoco basato sul tempo
+                
+                // Salva nell'array e nella memoria del telefono
+                classmates.push({ id: newId, x: xPercent, y: yPercent, nome: name });
+                salvaDati();
+                
+                // Disegna il punto sullo schermo
+                disegnaMarker(newId, xPercent, yPercent, name);
+            }
+        });
+
+        // Funzione per creare fisicamente il bollino blu
+        function disegnaMarker(id, x, y, name) {
+            const marker = document.createElement('div');
+            marker.className = 'hotspot';
+            marker.style.left = x + '%';
+            marker.style.top = y + '%';
+            marker.id = 'marker-' + id;
+
+            // Se tocco un marker esistente, apro il popup
+            marker.addEventListener('click', function(e) {
+                e.stopPropagation(); // Evita di far scattare il click sulla foto sottostante
+                markerAttivoId = id;
+                etichettaNome.innerText = name;
+                popup.showModal();
+            });
+
+            container.appendChild(marker);
         }
 
+        // Chiusura e gestione Popup
         function chiudiPopup() {
-            popup.close();                  
+            popup.close();
+            markerAttivoId = null;
+        }
+
+        function eliminaMarkerAttuale() {
+            if (markerAttivoId) {
+                // Rimuove dall'array
+                classmates = classmates.filter(c => c.id !== markerAttivoId);
+                salvaDati();
+                
+                // Rimuove l'elemento visivo
+                const markerElement = document.getElementById('marker-' + markerAttivoId);
+                if (markerElement) {
+                    markerElement.remove();
+                }
+                chiudiPopup();
+            }
+        }
+
+        function salvaDati() {
+            localStorage.setItem('classmatesData', JSON.stringify(classmates));
+        }
+
+        // Esporta i dati finali
+        function esportaDati() {
+            const jsonOutput = JSON.stringify(classmates, null, 2);
+            console.log(jsonOutput);
+            alert("Dati copiati negli appunti e visibili in console!");
+            navigator.clipboard.writeText(jsonOutput); // Copia automaticamente il JSON negli appunti
         }
     </script>
 

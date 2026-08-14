@@ -137,10 +137,10 @@
         document.getElementById('ghToken').value = localStorage.getItem('gh_token') || '';
 
         function salvaToken() {
-            const token = document.getElementById('ghToken').value.trim(); // Rimuove spazi accidentali
+            const token = document.getElementById('ghToken').value.trim();
             localStorage.setItem('gh_token', token);
             alert("Chiave salvata!");
-            caricaDatiDaGitHub(); // Ricarica subito i dati usando la nuova chiave
+            caricaDatiDaGitHub(); 
         }
 
         function base64ToUtf8(str) {
@@ -153,8 +153,7 @@
         function getHeaders(token) {
             const headers = { 
                 'Accept': 'application/vnd.github+json',
-                'X-GitHub-Api-Version': '2022-11-28',
-                'Cache-Control': 'no-cache'
+                'X-GitHub-Api-Version': '2022-11-28'
             };
             if (token) headers['Authorization'] = `Bearer ${token}`;
             return headers;
@@ -166,7 +165,8 @@
             
             try {
                 const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
-                    headers: getHeaders(token)
+                    headers: getHeaders(token),
+                    cache: 'no-store'
                 });
                 
                 if (res.ok) {
@@ -236,7 +236,8 @@
             try {
                 let currentSha = fileSHA;
                 const resGet = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, {
-                    headers: getHeaders(token)
+                    headers: getHeaders(token),
+                    cache: 'no-store'
                 });
                 
                 if (resGet.ok) {
@@ -257,7 +258,8 @@
                         message: "Aggiornamento mappatura compagni",
                         content: contentBase64,
                         sha: currentSha
-                    })
+                    }),
+                    cache: 'no-store'
                 };
 
                 const resPut = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`, fetchOptions);
